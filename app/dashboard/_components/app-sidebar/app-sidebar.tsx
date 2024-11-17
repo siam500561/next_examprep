@@ -17,7 +17,7 @@ import { AppSidebarHeader } from "./sidebar-header";
 export function AppSidebar() {
   return (
     <SidebarProvider className="w-fit">
-      <Sidebar>
+      <Sidebar className="border-none">
         <SidebarHeader className="p-4">
           <AppSidebarHeader />
         </SidebarHeader>

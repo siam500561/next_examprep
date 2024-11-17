@@ -1,7 +1,7 @@
 import { Plus } from "lucide-react";
 import Link from "next/link";
 
-export default function NoNotes() {
+export default function NoMaterials() {
   return (
     <div className="flex-1 rounded-xl flex flex-col items-center justify-center gap-4 bg-gradient-to-b from-primary/[0.03] to-primary/[0.08] group hover:from-primary/[0.05] hover:to-primary/[0.09] transition-all">
       <div className="relative">

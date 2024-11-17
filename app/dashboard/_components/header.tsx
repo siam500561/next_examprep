@@ -12,7 +12,7 @@ export default async function Header() {
   const user = await currentUser();
 
   return (
-    <div className="relative w-full shadow-2xl h-[120px] rounded-xl bg-primary overflow-hidden">
+    <div className="relative w-full h-[120px] rounded-xl bg-secondary-foreground overflow-hidden">
       {/* Profile Image with Gradient */}
       <div className="absolute right-0 top-0 h-full w-[300px] overflow-hidden">
         {user?.imageUrl && (
