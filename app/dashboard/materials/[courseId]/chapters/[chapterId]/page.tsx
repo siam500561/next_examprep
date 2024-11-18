@@ -3,7 +3,7 @@ import { chapterNotesTable, materialsTable } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { ChapterContent } from "../../../_components/chapter-content";
-import { ChapterNavigation } from "../../../_components/chapter-navigation";
+import { ChapterHeader } from "../../../_components/chapter-header";
 
 interface ChapterPageProps {
   params: {
@@ -23,6 +23,17 @@ async function getChapterData(courseId: string, chapterId: string) {
     notFound();
   }
 
+  const notes = await db
+    .select()
+    .from(chapterNotesTable)
+    .where(
+      and(
+        eq(chapterNotesTable.courseId, courseId),
+        eq(chapterNotesTable.chapterId, parseInt(chapterId))
+      )
+    )
+    .then((res) => res[0]);
+
   const courseLayout = material.courseLayout as {
     data: {
       chapters: Array<{
@@ -32,50 +43,34 @@ async function getChapterData(courseId: string, chapterId: string) {
     };
   };
 
-  const chapterIndex = parseInt(chapterId) - 1;
-  const chapter = courseLayout?.data?.chapters[chapterIndex];
+  const chapter = courseLayout?.data?.chapters[parseInt(chapterId) - 1];
 
   if (!chapter) {
     notFound();
   }
 
-  const notes = await db
-    .select()
-    .from(chapterNotesTable)
-    .where(
-      and(
-        eq(chapterNotesTable.courseId, courseId),
-        eq(chapterNotesTable.chapterId, chapterIndex + 1)
-      )
-    )
-    .then((res) => res[0]?.notes || null);
-
   return {
     material,
     chapter,
-    notes,
-    totalChapters: courseLayout.data.chapters.length,
+    notes: notes?.notes,
   };
 }
 
 export default async function ChapterPage({ params }: ChapterPageProps) {
-  const { material, chapter, notes, totalChapters } = await getChapterData(
+  const { material, chapter, notes } = await getChapterData(
     params.courseId,
     params.chapterId
   );
 
-  const chapterNumber = parseInt(params.chapterId);
-
   return (
     <div className="min-h-full flex flex-col">
-      <ChapterNavigation
+      <ChapterHeader
         courseId={params.courseId}
         title={chapter.title}
         courseTitle={material.topic}
-        chapterNumber={chapterNumber}
-        totalChapters={totalChapters}
+        chapterNumber={parseInt(params.chapterId)}
       />
-      <ChapterContent notes={notes} />
+      <ChapterContent chapter={chapter} notes={notes as any} />
     </div>
   );
 }

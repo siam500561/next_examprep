@@ -29,7 +29,7 @@ export const generateNotes = inngest.createFunction(
       await step.run("update-status-generating", async () => {
         await db
           .update(materialsTable)
-          .set({ status: "Generating Notes" })
+          .set({ status: "Generating" })
           .where(eq(materialsTable.courseId, courseId));
       });
 
@@ -58,13 +58,6 @@ export const generateNotes = inngest.createFunction(
               `Failed to generate notes for chapter ${chapter.id}:`,
               error
             );
-            // Update status to error for this specific chapter
-            await db
-              .update(materialsTable)
-              .set({
-                status: `Error: Failed to generate notes for chapter ${chapter.title}`,
-              })
-              .where(eq(materialsTable.courseId, courseId));
             throw error;
           }
         });
