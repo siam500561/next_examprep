@@ -30,7 +30,7 @@ export default async function DashboardPage() {
   return (
     <div className="w-full p-4">
       <Header />
-      <div className="flex-1 pt-4 space-y-4">
+      <div className="flex-1 py-4 space-y-4">
         <div className="flex items-center justify-between mt-3">
           <h2 className="text-xl font-bold">Your Study Material</h2>
           <RefreshButton />

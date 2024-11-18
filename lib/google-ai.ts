@@ -1,11 +1,44 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import {
+  GoogleGenerativeAI,
+  HarmBlockThreshold,
+  HarmCategory,
+} from "@google/generative-ai";
 
 if (!process.env.GOOGLE_AI_API_KEY) {
   throw new Error("Missing GOOGLE_AI_API_KEY");
 }
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+
+const safetySettings = [
+  {
+    category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+    threshold: HarmBlockThreshold.BLOCK_NONE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+    threshold: HarmBlockThreshold.BLOCK_NONE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+    threshold: HarmBlockThreshold.BLOCK_NONE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+    threshold: HarmBlockThreshold.BLOCK_NONE,
+  },
+];
+
+const model = genAI.getGenerativeModel({
+  model: "gemini-1.5-flash-latest",
+  safetySettings,
+  generationConfig: {
+    temperature: 0.7,
+    topK: 40,
+    topP: 0.95,
+    maxOutputTokens: 2048,
+  },
+});
 
 export async function generateCourseContent(prompt: string) {
   try {
@@ -64,92 +97,80 @@ Create a detailed study guide that includes at least:
 - 3-5 practice questions with answers
 - 2-3 additional learning resources
 
-Return as a JSON object with this structure:
+Return ONLY a valid JSON object with this exact structure:
 
 {
-  "key_concepts": [
-    "First important concept",
-    "Second important concept",
-    "Third important concept",
-    "Fourth important concept",
-    "Fifth important concept"
-  ],
+  "key_concepts": ["concept1", "concept2", "concept3", "concept4", "concept5"],
   "explanations": {
-    "First important concept": "Detailed explanation here...",
-    "Second important concept": "Detailed explanation here...",
-    "Third important concept": "Detailed explanation here...",
-    "Fourth important concept": "Detailed explanation here...",
-    "Fifth important concept": "Detailed explanation here..."
+    "concept1": "explanation1",
+    "concept2": "explanation2",
+    "concept3": "explanation3",
+    "concept4": "explanation4",
+    "concept5": "explanation5"
   },
   "examples": [
     {
       "title": "Example 1",
-      "description": "Detailed example description",
-      "code": "Example code or steps here"
-    },
-    {
-      "title": "Example 2",
-      "description": "Detailed example description",
-      "code": "Example code or steps here"
+      "description": "description1",
+      "code": "code1"
     }
   ],
   "practice_questions": [
     {
-      "question": "First practice question?",
-      "answer": "Detailed answer here"
-    },
-    {
-      "question": "Second practice question?",
-      "answer": "Detailed answer here"
-    },
-    {
-      "question": "Third practice question?",
-      "answer": "Detailed answer here"
+      "question": "question1",
+      "answer": "answer1"
     }
   ],
   "additional_resources": [
     {
-      "title": "Resource 1",
-      "type": "article/video/book",
-      "description": "Why this resource is helpful"
-    },
-    {
-      "title": "Resource 2",
-      "type": "article/video/book",
-      "description": "Why this resource is helpful"
+      "title": "resource1",
+      "type": "type1",
+      "description": "description1"
     }
   ]
 }
 
 Important:
-- Ensure all sections have content
-- Make explanations detailed and clear
-- Include practical, relevant examples
-- Create challenging practice questions
-- Recommend specific, relevant resources`;
+- Return ONLY the JSON object, no additional text or formatting
+- Ensure all string values are properly escaped
+- Do not use line breaks within string values
+- Avoid special characters that might break JSON parsing`;
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const text = response.text();
 
-    try {
-      const parsed = JSON.parse(text.replace(/```json\n|\n```/g, "").trim());
+    // Clean and validate the JSON
+    const cleanedText = text
+      .replace(/```json\n|\n```/g, "") // Remove code blocks
+      .replace(/[\u0000-\u001F]+/g, " ") // Remove control characters
+      .replace(/\n/g, " ") // Replace newlines with spaces
+      .replace(/\s+/g, " ") // Normalize whitespace
+      .trim();
 
-      // Validate content
+    try {
+      const parsed = JSON.parse(cleanedText);
+
+      // Validate content structure
       const isValid =
+        Array.isArray(parsed.key_concepts) &&
         parsed.key_concepts.length >= 3 &&
+        typeof parsed.explanations === "object" &&
         Object.keys(parsed.explanations).length >= 3 &&
+        Array.isArray(parsed.examples) &&
         parsed.examples.length >= 1 &&
+        Array.isArray(parsed.practice_questions) &&
         parsed.practice_questions.length >= 2 &&
+        Array.isArray(parsed.additional_resources) &&
         parsed.additional_resources.length >= 1;
 
       if (!isValid && retryCount < 3) {
         console.log(
           `Retry ${retryCount + 1} for chapter: ${
             params.chapterTitle
-          } due to insufficient content`
+          } due to invalid content structure`
         );
-        await delay(1000); // Wait 1 second before retry
+        await delay(1000);
         return generateChapterNotes(params, retryCount + 1);
       }
 
@@ -159,6 +180,11 @@ Important:
 
       return parsed;
     } catch (parseError) {
+      console.error("JSON Parse Error:", {
+        error: parseError,
+        text: cleanedText.substring(0, 200) + "...", // Log first 200 chars for debugging
+      });
+
       if (retryCount < 3) {
         console.log(
           `Retry ${retryCount + 1} for chapter: ${
@@ -168,14 +194,20 @@ Important:
         await delay(1000);
         return generateChapterNotes(params, retryCount + 1);
       }
-      throw parseError;
+      throw new Error(
+        `Failed to parse AI response after ${retryCount} retries`
+      );
     }
   } catch (error) {
-    console.error("AI Generation Error for chapter:", {
-      chapterTitle: params.chapterTitle,
-      error: error instanceof Error ? error.message : "Unknown error",
-      attempt: retryCount + 1,
-    });
+    if (retryCount < 3) {
+      console.log(
+        `Retry ${retryCount + 1} for chapter: ${
+          params.chapterTitle
+        } due to generation error`
+      );
+      await delay(1000);
+      return generateChapterNotes(params, retryCount + 1);
+    }
     throw error;
   }
 }

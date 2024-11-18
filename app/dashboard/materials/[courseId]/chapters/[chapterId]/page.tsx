@@ -53,22 +53,33 @@ async function getChapterData(courseId: string, chapterId: string) {
     material,
     chapter,
     notes: notes?.notes,
+    totalChapters: courseLayout.data.chapters.length,
   };
 }
 
 export default async function ChapterPage({ params }: ChapterPageProps) {
-  const { material, chapter, notes } = await getChapterData(
+  const { material, chapter, notes, totalChapters } = await getChapterData(
     params.courseId,
     params.chapterId
   );
 
+  const currentChapter = parseInt(params.chapterId);
+  const prevChapterId =
+    currentChapter > 1 ? (currentChapter - 1).toString() : undefined;
+  const nextChapterId =
+    currentChapter < totalChapters
+      ? (currentChapter + 1).toString()
+      : undefined;
+
   return (
-    <div className="min-h-full flex flex-col">
+    <div className="min-h-full flex flex-col w-full">
       <ChapterHeader
         courseId={params.courseId}
         title={chapter.title}
         courseTitle={material.topic}
-        chapterNumber={parseInt(params.chapterId)}
+        chapterNumber={currentChapter}
+        prevChapterId={prevChapterId}
+        nextChapterId={nextChapterId}
       />
       <ChapterContent chapter={chapter} notes={notes as any} />
     </div>

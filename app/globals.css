@@ -86,3 +86,38 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+@keyframes wave-1 {
+  0% {
+    background-position-x: 0;
+  }
+  100% {
+    background-position-x: 1200px;
+  }
+}
+
+@keyframes wave-2 {
+  0% {
+    background-position-x: 0;
+  }
+  100% {
+    background-position-x: -1200px;
+  }
+}
+
+.animate-wave-1 {
+  animation: wave-1 12s linear infinite;
+}
+
+.animate-wave-2 {
+  animation: wave-2 18s linear infinite;
+}
+
+@keyframes moveGlow {
+  from {
+    background-position: -200% center;
+  }
+  to {
+    background-position: 200% center;
+  }
+}

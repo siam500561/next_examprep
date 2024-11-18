@@ -13,7 +13,7 @@ import { formatDate } from "@/lib/utils";
 import { ArrowRight, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 interface StudyMaterialCardProps {
   material: Material;
@@ -37,115 +37,203 @@ const COURSE_TYPE_EMOJI = {
 } as const;
 
 const DIFFICULTY_COLORS = {
-  Beginner: "bg-green-500/10 text-green-700",
-  Intermediate: "bg-blue-500/10 text-blue-700",
-  Advanced: "bg-orange-500/10 text-orange-700",
-  Expert: "bg-red-500/10 text-red-700",
+  Beginner: {
+    badge: "bg-green-500/10 text-green-700",
+    progress: {
+      gradient: `
+        linear-gradient(
+          to top,
+          rgba(34, 197, 94, 0.15),
+          rgba(34, 197, 94, 0.15),
+          rgba(34, 197, 94, 0.15)
+        )
+      `,
+      glow: {
+        line: "rgba(34, 197, 94, 0.8)",
+        shadow:
+          "rgba(34, 197, 94, 0.5), rgba(34, 197, 94, 0.3), rgba(34, 197, 94, 0.2)",
+      },
+    },
+  },
+  Intermediate: {
+    badge: "bg-blue-500/10 text-blue-700",
+    progress: {
+      gradient: `
+        linear-gradient(
+          to top,
+          rgba(59, 130, 246, 0.15),
+          rgba(59, 130, 246, 0.15),
+          rgba(59, 130, 246, 0.15)
+        )
+      `,
+      glow: {
+        line: "rgba(59, 130, 246, 0.8)",
+        shadow:
+          "rgba(59, 130, 246, 0.5), rgba(59, 130, 246, 0.3), rgba(59, 130, 246, 0.2)",
+      },
+    },
+  },
+  Advanced: {
+    badge: "bg-orange-500/10 text-orange-700",
+    progress: {
+      gradient: `
+        linear-gradient(
+          to top,
+          rgba(249, 115, 22, 0.15),
+          rgba(249, 115, 22, 0.15),
+          rgba(249, 115, 22, 0.15)
+        )
+      `,
+      glow: {
+        line: "rgba(249, 115, 22, 0.8)",
+        shadow:
+          "rgba(249, 115, 22, 0.5), rgba(249, 115, 22, 0.3), rgba(249, 115, 22, 0.2)",
+      },
+    },
+  },
+  Expert: {
+    badge: "bg-red-500/10 text-red-700",
+    progress: {
+      gradient: `
+        linear-gradient(
+          to top,
+          rgba(239, 68, 68, 0.15),
+          rgba(239, 68, 68, 0.15),
+          rgba(239, 68, 68, 0.15)
+        )
+      `,
+      glow: {
+        line: "rgba(239, 68, 68, 0.8)",
+        shadow:
+          "rgba(239, 68, 68, 0.5), rgba(239, 68, 68, 0.3), rgba(239, 68, 68, 0.2)",
+      },
+    },
+  },
 } as const;
 
-export function StudyMaterialCard({
-  material: initialMaterial,
-}: StudyMaterialCardProps) {
-  const [material, setMaterial] = useState(initialMaterial);
-  const pollingRef = useRef<NodeJS.Timeout>();
+export function StudyMaterialCard({ material }: StudyMaterialCardProps) {
+  const [status, setStatus] = useState(material.status);
+  const [progress, setProgress] = useState(0);
   const router = useRouter();
 
   const courseLayout = material.courseLayout as CourseLayout;
   const emoji =
     COURSE_TYPE_EMOJI[material.courseType as keyof typeof COURSE_TYPE_EMOJI] ||
     "📚";
-  const difficultyColor =
+  const difficultyTheme =
     DIFFICULTY_COLORS[
       material.difficultyLevel as keyof typeof DIFFICULTY_COLORS
-    ] || "bg-gray-500/10 text-gray-700";
+    ] || DIFFICULTY_COLORS.Beginner;
 
   useEffect(() => {
-    // Clear existing interval if any
-    if (pollingRef.current) {
-      clearInterval(pollingRef.current);
-    }
-
-    // Only start polling if status is not completed
-    if (material.status !== "Completed") {
-      pollingRef.current = setInterval(async () => {
-        try {
-          const response = await fetch(
-            `/api/materials/${material.courseId}/status`
-          );
-          if (!response.ok) throw new Error("Failed to fetch status");
-
-          const data = await response.json();
-
-          if (data.status !== material.status) {
-            setMaterial((prev) => ({
-              ...prev,
-              status: data.status,
-            }));
-
-            if (data.status === "Completed") {
-              if (pollingRef.current) {
-                clearInterval(pollingRef.current);
-              }
-              router.refresh();
-            }
-          }
-        } catch (error) {
-          console.error("Failed to fetch status:", error);
-          if (pollingRef.current) {
-            clearInterval(pollingRef.current);
-          }
-        }
-      }, 3000);
-    }
-
-    // Cleanup function
-    return () => {
-      if (pollingRef.current) {
-        clearInterval(pollingRef.current);
+    if (material.status?.startsWith("Generating")) {
+      const progressMatch = material.status.match(/\((\d+)%\)/);
+      if (progressMatch) {
+        setProgress(parseInt(progressMatch[1]));
       }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [material.courseId, material.status]); // Only depend on courseId, not the entire material object
+
+      const interval = setInterval(async () => {
+        const response = await fetch(
+          `/api/materials/${material.courseId}/status`
+        );
+        const data = await response.json();
+        setStatus(data.status);
+
+        const newProgressMatch = data.status.match(/\((\d+)%\)/);
+        if (newProgressMatch) {
+          setProgress(parseInt(newProgressMatch[1]));
+        }
+
+        if (data.status === "Completed") {
+          clearInterval(interval);
+          router.refresh();
+        }
+      }, 2000);
+
+      return () => clearInterval(interval);
+    }
+  }, [material.courseId, material.status, router]);
+
+  const isGenerating = status?.startsWith("Generating");
+  const isCompleted = status === "Completed";
+  const hasError = status?.startsWith("Error");
 
   return (
-    <Card className="group hover:shadow-md transition-all">
-      <CardHeader className="space-y-1">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">{emoji}</span>
-            <Badge variant="outline" className={difficultyColor}>
-              {material.difficultyLevel}
+    <Card className="group hover:shadow-md transition-all relative overflow-hidden">
+      {isGenerating && (
+        <>
+          <div
+            className="absolute inset-0 transition-all duration-1000 ease-out"
+            style={{
+              clipPath: `inset(${100 - progress}% 0 0 0)`,
+              background: difficultyTheme.progress.gradient,
+              backdropFilter: "blur(8px)",
+            }}
+          />
+
+          <div
+            className="absolute inset-x-0 h-[2px] transition-all duration-1000"
+            style={{
+              top: `${100 - progress}%`,
+              background: `linear-gradient(90deg, transparent, ${difficultyTheme.progress.glow.line}, transparent)`,
+              boxShadow: `0 0 20px ${
+                difficultyTheme.progress.glow.shadow.split(", ")[0]
+              }, 0 0 40px ${
+                difficultyTheme.progress.glow.shadow.split(", ")[1]
+              }, 0 0 80px ${
+                difficultyTheme.progress.glow.shadow.split(", ")[2]
+              }`,
+              animation: "moveGlow 2s linear infinite",
+            }}
+          />
+        </>
+      )}
+
+      <div className="relative z-10">
+        <CardHeader className="space-y-1">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">{emoji}</span>
+              <Badge variant="outline" className={difficultyTheme.badge}>
+                {material.difficultyLevel}
+              </Badge>
+            </div>
+            <Badge variant="secondary" className="font-normal">
+              {formatDate(material.createdAt)}
             </Badge>
           </div>
-          <Badge variant="secondary" className="font-normal">
-            {formatDate(material.createdAt)}
-          </Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-2">
-        <h3 className="font-semibold text-lg line-clamp-1 group-hover:text-primary transition-colors">
-          {courseLayout?.data?.course_title || material.topic}
-        </h3>
-        <p className="text-sm text-muted-foreground line-clamp-2">
-          {courseLayout?.data?.chapters[0]?.summary || "Loading summary..."}
-        </p>
-      </CardContent>
-      <CardFooter className="flex justify-between items-center">
-        <Badge variant="secondary">{material.courseType}</Badge>
-        {material.status === "Completed" ? (
-          <Button asChild size="sm" className="group/button">
-            <Link href={`/dashboard/materials/${material.courseId}`}>
-              View Material
-              <ArrowRight className="w-4 h-4 ml-2 group-hover/button:translate-x-0.5 transition-transform" />
-            </Link>
-          </Button>
-        ) : (
-          <Button size="sm" disabled variant="secondary">
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            {material.status || "Generating..."}
-          </Button>
-        )}
-      </CardFooter>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <h3 className="font-semibold text-lg line-clamp-1 group-hover:text-primary transition-colors">
+            {courseLayout?.data?.course_title || material.topic}
+          </h3>
+          <p className="text-sm text-muted-foreground line-clamp-2">
+            {courseLayout?.data?.chapters[0]?.summary || "Loading summary..."}
+          </p>
+
+          {hasError && (
+            <div className="text-sm text-red-500">
+              Failed to generate notes. Please try again.
+            </div>
+          )}
+        </CardContent>
+        <CardFooter className="flex justify-between items-center">
+          <Badge variant="secondary">{material.courseType}</Badge>
+          {isCompleted ? (
+            <Button asChild size="sm" className="group/button">
+              <Link href={`/dashboard/materials/${material.courseId}`}>
+                View Material
+                <ArrowRight className="w-4 h-4 ml-2 group-hover/button:translate-x-0.5 transition-transform" />
+              </Link>
+            </Button>
+          ) : (
+            <Button size="sm" disabled variant="secondary">
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Generating...
+            </Button>
+          )}
+        </CardFooter>
+      </div>
     </Card>
   );
 }
