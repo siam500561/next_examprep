@@ -1,5 +1,6 @@
 "use client";
 
+import { getMaterialStatus } from "@/app/dashboard/materials/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -133,20 +134,23 @@ export function StudyMaterialCard({ material }: StudyMaterialCardProps) {
       }
 
       const interval = setInterval(async () => {
-        const response = await fetch(
-          `/api/materials/${material.courseId}/status`
-        );
-        const data = await response.json();
-        setStatus(data.status);
+        try {
+          const data = await getMaterialStatus(material.courseId);
+          setStatus(data.status);
 
-        const newProgressMatch = data.status.match(/\((\d+)%\)/);
-        if (newProgressMatch) {
-          setProgress(parseInt(newProgressMatch[1]));
-        }
+          const newProgressMatch = data.status?.match(/\((\d+)%\)/);
+          if (newProgressMatch) {
+            setProgress(parseInt(newProgressMatch[1]));
+          }
 
-        if (data.status === "Completed") {
+          if (data.status === "Completed") {
+            clearInterval(interval);
+            router.refresh();
+          }
+        } catch (error) {
+          console.error("Failed to fetch status:", error);
+          setStatus("Error: Failed to generate");
           clearInterval(interval);
-          router.refresh();
         }
       }, 2000);
 

@@ -6,11 +6,12 @@ import { ChapterList } from "../_components/chapter-list";
 import { StudyMaterialHeader } from "../_components/study-material-header";
 import { StudyTools } from "../_components/study-tools";
 
-interface StudyMaterialPageProps {
-  params: {
+type StudyMaterialPageProps = {
+  params: Promise<{
     courseId: string;
-  };
-}
+    chapterId: string;
+  }>;
+};
 
 async function getMaterial(courseId: string) {
   const material = await db
@@ -29,7 +30,7 @@ async function getMaterial(courseId: string) {
 export default async function StudyMaterialPage({
   params,
 }: StudyMaterialPageProps) {
-  const material = await getMaterial(params.courseId);
+  const material = await getMaterial((await params).courseId);
   const courseLayout = material.courseLayout as any;
 
   return (

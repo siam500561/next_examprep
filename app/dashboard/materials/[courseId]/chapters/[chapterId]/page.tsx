@@ -5,12 +5,12 @@ import { notFound } from "next/navigation";
 import { ChapterContent } from "../../../_components/chapter-content";
 import { ChapterHeader } from "../../../_components/chapter-header";
 
-interface ChapterPageProps {
-  params: {
+type ChapterPageProps = {
+  params: Promise<{
     courseId: string;
     chapterId: string;
-  };
-}
+  }>;
+};
 
 async function getChapterData(courseId: string, chapterId: string) {
   const material = await db
@@ -58,12 +58,14 @@ async function getChapterData(courseId: string, chapterId: string) {
 }
 
 export default async function ChapterPage({ params }: ChapterPageProps) {
+  const { courseId, chapterId } = await params;
+
   const { material, chapter, notes, totalChapters } = await getChapterData(
-    params.courseId,
-    params.chapterId
+    courseId,
+    chapterId
   );
 
-  const currentChapter = parseInt(params.chapterId);
+  const currentChapter = parseInt(chapterId);
   const prevChapterId =
     currentChapter > 1 ? (currentChapter - 1).toString() : undefined;
   const nextChapterId =
@@ -74,14 +76,16 @@ export default async function ChapterPage({ params }: ChapterPageProps) {
   return (
     <div className="min-h-full flex flex-col w-full">
       <ChapterHeader
-        courseId={params.courseId}
+        courseId={courseId}
         title={chapter.title}
         courseTitle={material.topic}
         chapterNumber={currentChapter}
         prevChapterId={prevChapterId}
         nextChapterId={nextChapterId}
       />
-      <ChapterContent chapter={chapter} notes={notes as any} />
+      <div className="flex-1 p-8">
+        <ChapterContent chapter={chapter} notes={notes} />
+      </div>
     </div>
   );
 }
